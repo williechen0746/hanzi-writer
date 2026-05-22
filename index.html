@@ -42,21 +42,16 @@
 
       .app {
         width: min(100%, 52rem);
-        min-height: 100vh;
+        min-height: 100dvh;
         margin: 0 auto;
-        padding: max(1.1rem, env(safe-area-inset-top)) 1rem
-          max(1.1rem, env(safe-area-inset-bottom));
-        display: grid;
-        grid-template-rows: auto 1fr auto;
-        gap: 1rem;
+        padding: env(safe-area-inset-top) 1rem env(safe-area-inset-bottom);
+        display: flex;
+        flex-direction: column;
       }
 
       header {
         text-align: center;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        height: 4rem;
+        padding: 0.75rem 0;
         flex-shrink: 0;
       }
 
@@ -90,14 +85,16 @@
       }
 
       .display-panel {
-        display: grid;
-        place-items: center;
+        flex: 1;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         min-height: 0;
       }
 
       .character-frame {
         position: relative;
-        width: min(82vw, 28rem);
+        width: min(85vw, 22rem);
         aspect-ratio: 1;
         display: grid;
         place-items: center;
@@ -146,7 +143,9 @@
       }
 
       .control-panel {
-        display: grid;
+        flex-shrink: 0;
+        display: flex;
+        flex-direction: column;
         gap: 0.75rem;
       }
 
@@ -288,17 +287,8 @@
 
       @media (max-width: 420px) {
         .app {
-          gap: 0.8rem;
           padding-left: 0.85rem;
           padding-right: 0.85rem;
-        }
-
-        header {
-          align-items: flex-start;
-        }
-
-        .hint {
-          max-width: 13.5rem;
         }
 
         .character-frame {
