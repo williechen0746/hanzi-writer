@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>汉字书写和笔顺</title>
+    <script src="https://cdn.jsdelivr.net/npm/hanzi-writer@3/dist/hanzi-writer.min.js"></script>
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #111827;
+        --muted: #6b7280;
+        --line: #d7dde8;
+        --line-strong: #a9b4c6;
+        --paper: #fbfcff;
+        --surface: #ffffff;
+        --accent: #d13f2f;
+        --accent-soft: #fff0ed;
+        --character-ink: #2f343b;
+        --character-soft: #eef0f3;
+        --shadow: 0 18px 50px rgba(31, 41, 55, 0.12);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      [hidden] {
+        display: none !important;
+      }
+
+      body {
+        margin: 0;
+        min-height: 100vh;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at 8% 0%, rgba(209, 63, 47, 0.1), transparent 28rem),
+          linear-gradient(160deg, #fff7f3 0%, #f8fbff 44%, #eef7f4 100%);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+          "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      }
+
+      .app {
+        width: min(100%, 52rem);
+        min-height: 100vh;
+        margin: 0 auto;
+        padding: max(1.1rem, env(safe-area-inset-top)) 1rem
+          max(1.1rem, env(safe-area-inset-bottom));
+        display: grid;
+        grid-template-rows: auto 1fr auto;
+        gap: 1rem;
+      }
+
+      header {
+        text-align: center;
+        padding-top: 3rem;
+      }
+
+      h1 {
+        margin: 0;
+        font-size: clamp(1.45rem, 5vw, 2.4rem);
+        line-height: 1.05;
+        letter-spacing: 0;
+      }
+
+      .hint {
+        margin: 0.35rem 0 0;
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+
+      button {
+        min-width: 2.75rem;
+        height: 2.75rem;
+        border: 1px solid rgba(17, 24, 39, 0.1);
+        border-radius: 0.75rem;
+        background: rgba(255, 255, 255, 0.86);
+        color: var(--ink);
+        font: inherit;
+        font-weight: 700;
+        box-shadow: 0 8px 24px rgba(31, 41, 55, 0.08);
+      }
+
+      button:active {
+        transform: translateY(1px);
+      }
+
+      .display-panel {
+        display: grid;
+        place-items: center;
+        min-height: 0;
+      }
+
+      .character-frame {
+        position: relative;
+        width: min(82vw, 28rem);
+        aspect-ratio: 1;
+        display: grid;
+        place-items: center;
+        border: 2px solid var(--line-strong);
+        border-radius: 1rem;
+        overflow: hidden;
+        background:
+          linear-gradient(90deg, transparent calc(50% - 1px), var(--line-strong) 50%, transparent calc(50% + 1px)),
+          linear-gradient(0deg, transparent calc(50% - 1px), var(--line-strong) 50%, transparent calc(50% + 1px)),
+          linear-gradient(45deg, transparent calc(50% - 1px), var(--line) 50%, transparent calc(50% + 1px)),
+          linear-gradient(-45deg, transparent calc(50% - 1px), var(--line) 50%, transparent calc(50% + 1px)),
+          var(--paper);
+        box-shadow: var(--shadow);
+      }
+
+      .writer {
+        position: absolute;
+        inset: 0;
+        z-index: 1;
+      }
+
+      .character {
+        display: inline-block;
+        position: relative;
+        z-index: 2;
+        text-align: center;
+        color: var(--character-ink);
+        font-family: "Kaiti SC", "STKaiti", "KaiTi", "Songti SC", "SimSun", serif;
+        font-size: 18rem;
+        font-weight: 600;
+        line-height: 0.92;
+        transform: translateY(-0.02em);
+        user-select: none;
+      }
+
+      .empty {
+        display: grid;
+        place-items: center;
+        width: 100%;
+        height: 100%;
+        padding: 2rem;
+        color: var(--muted);
+        font-size: clamp(1.05rem, 4vw, 1.3rem);
+        line-height: 1.6;
+        text-align: center;
+      }
+
+      .control-panel {
+        display: grid;
+        gap: 0.75rem;
+      }
+
+      .stroke-panel {
+        display: grid;
+        gap: 0.55rem;
+        padding: 0.1rem 0 0.25rem;
+      }
+
+      .replay-row {
+        display: flex;
+        justify-content: center;
+        padding: 0.25rem 0;
+      }
+
+      .stroke-header {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.75rem;
+        color: var(--muted);
+        font-size: 0.92rem;
+      }
+
+      .replay-button {
+        width: auto;
+        min-width: 4.2rem;
+        height: 2.25rem;
+        padding: 0 0.85rem;
+        border-color: rgba(47, 52, 59, 0.14);
+        background: rgba(255, 255, 255, 0.78);
+        color: var(--character-ink);
+        box-shadow: none;
+      }
+
+      .stroke-order {
+        display: flex;
+        gap: 0.5rem;
+        overflow-x: auto;
+        padding-bottom: 0.1rem;
+        scrollbar-width: none;
+      }
+
+      .stroke-order::-webkit-scrollbar {
+        display: none;
+      }
+
+      .stroke-card {
+        position: relative;
+        flex: 0 0 auto;
+        width: 4.2rem;
+        aspect-ratio: 1;
+        border: 1px solid rgba(47, 52, 59, 0.12);
+        border-radius: 0.7rem;
+        background: rgba(255, 255, 255, 0.78);
+        overflow: hidden;
+      }
+
+      .stroke-card svg {
+        width: 100%;
+        height: 100%;
+        display: block;
+      }
+
+      .stroke-card span {
+        position: absolute;
+        top: 0.25rem;
+        left: 0.35rem;
+        color: var(--muted);
+        font-size: 0.75rem;
+        font-weight: 700;
+      }
+
+      .input-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        gap: 0.6rem;
+        padding: 0.65rem;
+        border: 1px solid rgba(17, 24, 39, 0.08);
+        border-radius: 1rem;
+        background: rgba(255, 255, 255, 0.9);
+        box-shadow: 0 12px 30px rgba(31, 41, 55, 0.09);
+      }
+
+      input {
+        width: 100%;
+        min-width: 0;
+        border: 0;
+        outline: 0;
+        background: transparent;
+        color: var(--ink);
+        font: inherit;
+        font-size: 1.45rem;
+        line-height: 1.2;
+        padding: 0.45rem 0.5rem;
+      }
+
+      input::placeholder {
+        color: #9ca3af;
+      }
+
+      .primary-button {
+        width: auto;
+        min-width: 4.75rem;
+        padding: 0 1rem;
+        border-color: transparent;
+        background: var(--accent);
+        color: #fff;
+      }
+
+      .recent {
+        display: flex;
+        gap: 0.5rem;
+        overflow-x: auto;
+        padding: 0.1rem 0 0.25rem;
+        scrollbar-width: none;
+      }
+
+      .recent::-webkit-scrollbar {
+        display: none;
+      }
+
+      .recent button {
+        flex: 0 0 auto;
+        min-width: 3rem;
+        background: var(--character-soft);
+        border-color: rgba(47, 52, 59, 0.14);
+        color: var(--character-ink);
+        font-family: "Kaiti SC", "STKaiti", "KaiTi", "Songti SC", "SimSun", serif;
+        font-size: 1.45rem;
+      }
+
+      .status {
+        min-height: 1.25rem;
+        color: var(--muted);
+        font-size: 0.92rem;
+        text-align: center;
+      }
+
+      @media (max-width: 420px) {
+        .app {
+          gap: 0.8rem;
+          padding-left: 0.85rem;
+          padding-right: 0.85rem;
+        }
+
+        header {
+          align-items: flex-start;
+        }
+
+        .hint {
+          max-width: 13.5rem;
+        }
+
+        .character-frame {
+          width: min(88vw, 24rem);
+          border-radius: 0.85rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="app">
+      <header>
+        <div>
+          <h1>汉字书写和笔顺</h1>
+        </div>
+      </header>
+
+      <section class="display-panel" aria-live="polite">
+        <div class="character-frame" aria-label="田字格">
+          <div id="writer" class="writer" aria-hidden="true"></div>
+          <div id="empty" class="empty">在下面输入汉字<br />这里会显示大字</div>
+          <div id="character" class="character" hidden></div>
+        </div>
+      </section>
+
+      <section class="control-panel">
+        <div class="stroke-panel" aria-label="笔顺">
+          <div class="replay-row">
+            <button id="replay" class="replay-button" type="button">重播</button>
+          </div>
+          <div class="stroke-header">
+            <span id="stroke-summary">笔顺会显示在这里</span>
+          </div>
+          <div id="stroke-order" class="stroke-order"></div>
+        </div>
+        <div id="form" class="input-row">
+          <input
+            id="input"
+            type="text"
+            inputmode="text"
+            autocomplete="off"
+            autocapitalize="off"
+            placeholder="例如：爱"
+            aria-label="输入汉字"
+          />
+        </div>
+        <div id="recent" class="recent" aria-label="最近查看"></div>
+        <div id="status" class="status">也可以输入词语，我会自动取第一个汉字。</div>
+      </section>
+    </main>
+
+    <script>
+      const input = document.querySelector("#input");
+      const form = document.querySelector("#form");
+      const writerTarget = document.querySelector("#writer");
+      const character = document.querySelector("#character");
+      const empty = document.querySelector("#empty");
+      const recent = document.querySelector("#recent");
+      const status = document.querySelector("#status");
+      const replay = document.querySelector("#replay");
+      const strokeOrder = document.querySelector("#stroke-order");
+      const strokeSummary = document.querySelector("#stroke-summary");
+
+      const storageKey = "hanzi-recent";
+      let recentChars = loadRecent();
+      let fitTimer;
+      let writer;
+      let currentChar = "";
+      const measuringCanvas = document.createElement("canvas");
+      const measuringContext = measuringCanvas.getContext("2d");
+
+      function loadRecent() {
+        try {
+          return JSON.parse(localStorage.getItem(storageKey)) || [];
+        } catch {
+          return [];
+        }
+      }
+
+      function saveRecent() {
+        localStorage.setItem(storageKey, JSON.stringify(recentChars.slice(0, 12)));
+      }
+
+      function firstHanzi(text) {
+        return Array.from(text.trim()).find((char) => /\p{Script=Han}/u.test(char)) || "";
+      }
+
+      function renderRecent() {
+        recent.innerHTML = "";
+        recentChars.forEach((char) => {
+          const button = document.createElement("button");
+          button.type = "button";
+          button.textContent = char;
+          button.title = `显示 ${char}`;
+          button.addEventListener("click", () => showCharacter(char));
+          recent.append(button);
+        });
+      }
+
+      function fitCharacter() {
+        if (character.hidden) return;
+
+        const frame = character.parentElement.getBoundingClientRect();
+        const char = character.textContent;
+        const target = frame.width * 0.82;
+        const fontFamily = getComputedStyle(character).fontFamily;
+        let low = frame.width * 0.35;
+        let high = frame.width * 1.25;
+
+        for (let index = 0; index < 12; index += 1) {
+          const mid = (low + high) / 2;
+          measuringContext.font = `600 ${mid}px ${fontFamily}`;
+          const metrics = measuringContext.measureText(char);
+          const measuredWidth =
+            Math.abs(metrics.actualBoundingBoxLeft) + Math.abs(metrics.actualBoundingBoxRight);
+          const measuredHeight =
+            Math.abs(metrics.actualBoundingBoxAscent) + Math.abs(metrics.actualBoundingBoxDescent);
+
+          if (measuredWidth > target || measuredHeight > target) {
+            high = mid;
+          } else {
+            low = mid;
+          }
+        }
+
+        character.style.fontSize = `${low}px`;
+      }
+
+      function requestFit() {
+        clearTimeout(fitTimer);
+        requestAnimationFrame(fitCharacter);
+        fitTimer = setTimeout(fitCharacter, 120);
+      }
+
+      function writerSize() {
+        return Math.round(character.parentElement.getBoundingClientRect().width);
+      }
+
+      function createWriter(char) {
+        if (!window.HanziWriter) return false;
+
+        const size = writerSize();
+        writerTarget.innerHTML = "";
+        character.hidden = true;
+        writerTarget.hidden = false;
+        writer = HanziWriter.create(writerTarget, char, {
+          width: size,
+          height: size,
+          padding: Math.round(size * 0.09),
+          showOutline: true,
+          showCharacter: false,
+          strokeColor: "#2f343b",
+          radicalColor: "#2f343b",
+          outlineColor: "rgba(47, 52, 59, 0.18)",
+          drawingColor: "#2f343b",
+          strokeAnimationSpeed: 1.15,
+          delayBetweenStrokes: 260,
+          dataCache: {},
+          characterDataLoader: function(char, onComplete) {
+            var xhr = new XMLHttpRequest();
+            xhr.open("GET", "./hanzi-writer-data/data/" + char + ".json", true);
+            xhr.onreadystatechange = function() {
+              if (xhr.readyState === 4 && xhr.status === 200) {
+                onComplete(JSON.parse(xhr.responseText));
+              }
+            };
+            xhr.send();
+          }
+        });
+        writer.animateCharacter();
+        return true;
+      }
+
+      function renderFallbackCharacter(char) {
+        writerTarget.hidden = true;
+        writerTarget.innerHTML = "";
+        character.textContent = char;
+        character.hidden = false;
+        requestFit();
+      }
+
+      function renderStrokeOrder(char) {
+        strokeOrder.innerHTML = "";
+        strokeSummary.textContent = "正在加载笔顺...";
+
+        if (!window.HanziWriter) {
+          strokeSummary.textContent = "笔顺动画需要联网加载数据。";
+          return;
+        }
+
+        HanziWriter.loadCharacterData(char)
+          .then((data) => {
+            strokeSummary.textContent = `笔顺：${data.strokes.length} 笔`;
+            data.strokes.forEach((path, index) => {
+              const card = document.createElement("div");
+              card.className = "stroke-card";
+              card.innerHTML = `
+                <span>${index + 1}</span>
+                <svg viewBox="0 0 1024 1024" aria-label="第 ${index + 1} 笔">
+                  <g transform="translate(0, 900) scale(1, -1)">
+                    ${data.strokes
+                      .slice(0, index)
+                      .map((donePath) => `<path d="${donePath}" fill="rgba(47, 52, 59, 0.18)"></path>`)
+                      .join("")}
+                    <path d="${path}" fill="#2f343b"></path>
+                  </g>
+                </svg>
+              `;
+              strokeOrder.append(card);
+            });
+          })
+          .catch(() => {
+            strokeSummary.textContent = "暂时没有找到这个字的笔顺数据。";
+          });
+      }
+
+      function replayAnimation() {
+        if (writer && !writerTarget.hidden) writer.animateCharacter();
+      }
+
+      function showCharacter(char) {
+        if (!char) {
+          writerTarget.hidden = true;
+          writerTarget.innerHTML = "";
+          character.hidden = true;
+          empty.hidden = false;
+          strokeOrder.innerHTML = "";
+          strokeSummary.textContent = "笔顺会显示在这里";
+          status.textContent = "请输入至少一个汉字。";
+          return;
+        }
+
+        currentChar = char;
+        empty.hidden = true;
+        input.value = char;
+        status.textContent = `正在显示：${char}`;
+        if (!createWriter(char)) renderFallbackCharacter(char);
+        renderStrokeOrder(char);
+
+        recentChars = [char, ...recentChars.filter((item) => item !== char)].slice(0, 12);
+        saveRecent();
+        renderRecent();
+      }
+
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        showCharacter(firstHanzi(input.value));
+      });
+
+      input.addEventListener("input", () => {
+        const char = firstHanzi(input.value);
+        if (char) showCharacter(char);
+      });
+
+      window.addEventListener("resize", requestFit);
+      window.addEventListener("resize", () => {
+        if (currentChar && !writerTarget.hidden) createWriter(currentChar);
+      });
+      replay.addEventListener("click", replayAnimation);
+
+      renderRecent();
+      showCharacter(recentChars[0] || "爱");
+    </script>
+  </body>
+</html>
