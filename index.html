@@ -278,12 +278,6 @@
         font-size: 1.45rem;
       }
 
-      .status {
-        min-height: 1.25rem;
-        color: var(--muted);
-        font-size: 0.92rem;
-        text-align: center;
-      }
 
       @media (max-width: 420px) {
         .app {
@@ -336,7 +330,6 @@
           />
         </div>
         <div id="recent" class="recent" aria-label="最近查看"></div>
-        <div id="status" class="status">也可以输入词语，我会自动取第一个汉字。</div>
       </section>
     </main>
 
@@ -347,7 +340,6 @@
       const character = document.querySelector("#character");
       const empty = document.querySelector("#empty");
       const recent = document.querySelector("#recent");
-      const status = document.querySelector("#status");
       const replay = document.querySelector("#replay");
       const strokeOrder = document.querySelector("#stroke-order");
       const strokeSummary = document.querySelector("#stroke-summary");
@@ -556,7 +548,6 @@
           empty.hidden = false;
           strokeOrder.innerHTML = "";
           strokeSummary.textContent = "笔顺会显示在这里";
-          status.textContent = "请输入至少一个汉字。";
           return;
         }
 
@@ -564,7 +555,6 @@
         currentChar = char;
         empty.hidden = true;
         input.value = char;
-        status.textContent = `正在显示：${char}`;
         if (!createWriter(char)) renderFallbackCharacter(char);
         renderStrokeOrder(char);
 
