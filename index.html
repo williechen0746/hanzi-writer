@@ -427,10 +427,13 @@
         return Math.round(character.parentElement.getBoundingClientRect().width);
       }
 
+      let writerFrameSize = 0;
+
       function createWriter(char) {
         if (!window.HanziWriter) return false;
 
         const size = writerSize();
+        writerFrameSize = size;
         writerTarget.innerHTML = "";
         character.hidden = true;
         writerTarget.hidden = false;
@@ -451,9 +454,18 @@
             var xhr = new XMLHttpRequest();
             xhr.open("GET", "./hanzi-writer-data/data/" + char + ".json", true);
             xhr.onreadystatechange = function() {
-              if (xhr.readyState === 4 && xhr.status === 200) {
-                onComplete(JSON.parse(xhr.responseText));
+              if (xhr.readyState === 4) {
+                if (xhr.status === 200) {
+                  onComplete(JSON.parse(xhr.responseText));
+                } else {
+                  console.warn("字符数据未找到:", char, xhr.status);
+                  onComplete(null);
+                }
               }
+            };
+            xhr.onerror = function() {
+              console.warn("字符数据加载失败:", char);
+              onComplete(null);
             };
             xhr.send();
           }
@@ -474,35 +486,62 @@
         strokeOrder.innerHTML = "";
         strokeSummary.textContent = "正在加载笔顺...";
 
-        if (!window.HanziWriter) {
-          strokeSummary.textContent = "笔顺动画需要联网加载数据。";
-          return;
-        }
-
-        HanziWriter.loadCharacterData(char)
+        loadCharacterData(char)
           .then((data) => {
             strokeSummary.textContent = `笔顺：${data.strokes.length} 笔`;
             data.strokes.forEach((path, index) => {
               const card = document.createElement("div");
               card.className = "stroke-card";
-              card.innerHTML = `
-                <span>${index + 1}</span>
-                <svg viewBox="0 0 1024 1024" aria-label="第 ${index + 1} 笔">
-                  <g transform="translate(0, 900) scale(1, -1)">
-                    ${data.strokes
-                      .slice(0, index)
-                      .map((donePath) => `<path d="${donePath}" fill="rgba(47, 52, 59, 0.18)"></path>`)
-                      .join("")}
-                    <path d="${path}" fill="#2f343b"></path>
-                  </g>
-                </svg>
-              `;
+
+              const num = document.createElement("span");
+              num.textContent = String(index + 1);
+              card.append(num);
+
+              const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+              svg.setAttribute("viewBox", "0 0 1024 1024");
+              svg.setAttribute("aria-label", `第 ${index + 1} 笔`);
+
+              const g = document.createElementNS("http://www.w3.org/2000/svg", "g");
+              g.setAttribute("transform", "translate(0, 900) scale(1, -1)");
+
+              data.strokes.slice(0, index).forEach(function(donePath) {
+                var p = document.createElementNS("http://www.w3.org/2000/svg", "path");
+                p.setAttribute("d", donePath);
+                p.setAttribute("fill", "rgba(47, 52, 59, 0.18)");
+                g.append(p);
+              });
+
+              var currentPath = document.createElementNS("http://www.w3.org/2000/svg", "path");
+              currentPath.setAttribute("d", path);
+              currentPath.setAttribute("fill", "#2f343b");
+              g.append(currentPath);
+              svg.append(g);
+              card.append(svg);
               strokeOrder.append(card);
             });
           })
           .catch(() => {
             strokeSummary.textContent = "暂时没有找到这个字的笔顺数据。";
           });
+      }
+
+      // 从本地加载笔顺数据（与写字渲染器使用相同的数据源）
+      function loadCharacterData(char) {
+        return new Promise(function(resolve, reject) {
+          var xhr = new XMLHttpRequest();
+          xhr.open("GET", "./hanzi-writer-data/data/" + char + ".json", true);
+          xhr.onreadystatechange = function() {
+            if (xhr.readyState === 4) {
+              if (xhr.status === 200) {
+                resolve(JSON.parse(xhr.responseText));
+              } else {
+                reject(new Error("HTTP " + xhr.status));
+              }
+            }
+          };
+          xhr.onerror = function() { reject(new Error("Network error")); };
+          xhr.send();
+        });
       }
 
       function replayAnimation() {
@@ -521,6 +560,7 @@
           return;
         }
 
+        if (char === currentChar) return;
         currentChar = char;
         empty.hidden = true;
         input.value = char;
@@ -543,9 +583,15 @@
         if (char) showCharacter(char);
       });
 
-      window.addEventListener("resize", requestFit);
-      window.addEventListener("resize", () => {
-        if (currentChar && !writerTarget.hidden) createWriter(currentChar);
+      window.addEventListener("resize", function() {
+        requestFit();
+        if (currentChar && !writerTarget.hidden) {
+          var s = writerSize();
+          if (Math.abs(s - writerFrameSize) > 5) {
+            writerFrameSize = s;
+            createWriter(currentChar);
+          }
+        }
       });
       replay.addEventListener("click", replayAnimation);
 
