@@ -352,6 +352,7 @@
       let fitTimer;
       let writer;
       let currentChar = "";
+      let animationLoopToken = 0;
       const measuringCanvas = document.createElement("canvas");
       const measuringContext = measuringCanvas.getContext("2d");
 
@@ -424,9 +425,30 @@
 
       let writerFrameSize = 0;
 
+      function stopAnimationLoop() {
+        animationLoopToken += 1;
+      }
+
+      function playAnimationLoop() {
+        if (!writer || writerTarget.hidden) return;
+
+        const token = ++animationLoopToken;
+        const run = function() {
+          if (token !== animationLoopToken || !writer || writerTarget.hidden) return;
+
+          Promise.resolve(writer.animateCharacter()).then(function() {
+            if (token !== animationLoopToken || !writer || writerTarget.hidden) return;
+            setTimeout(run, 700);
+          });
+        };
+
+        run();
+      }
+
       function createWriter(char) {
         if (!window.HanziWriter) return false;
 
+        stopAnimationLoop();
         const size = writerSize();
         writerFrameSize = size;
         writerTarget.innerHTML = "";
@@ -465,11 +487,12 @@
             xhr.send();
           }
         });
-        writer.animateCharacter();
+        playAnimationLoop();
         return true;
       }
 
       function renderFallbackCharacter(char) {
+        stopAnimationLoop();
         writerTarget.hidden = true;
         writerTarget.innerHTML = "";
         character.textContent = char;
@@ -540,11 +563,12 @@
       }
 
       function replayAnimation() {
-        if (writer && !writerTarget.hidden) writer.animateCharacter();
+        playAnimationLoop();
       }
 
       function showCharacter(char) {
         if (!char) {
+          stopAnimationLoop();
           writerTarget.hidden = true;
           writerTarget.innerHTML = "";
           character.hidden = true;
