@@ -429,17 +429,31 @@
         animationLoopToken += 1;
       }
 
+      function waitForNextAnimationStep(token, delay) {
+        return new Promise(function(resolve) {
+          setTimeout(function() {
+            resolve(token === animationLoopToken && writer && !writerTarget.hidden);
+          }, delay);
+        });
+      }
+
       function playAnimationLoop() {
         if (!writer || writerTarget.hidden) return;
 
         const token = ++animationLoopToken;
-        const run = function() {
+        const run = async function() {
           if (token !== animationLoopToken || !writer || writerTarget.hidden) return;
 
-          Promise.resolve(writer.animateCharacter()).then(function() {
-            if (token !== animationLoopToken || !writer || writerTarget.hidden) return;
-            setTimeout(run, 700);
-          });
+          await Promise.resolve(writer.showCharacter({ duration: 0 }));
+          if (!(await waitForNextAnimationStep(token, 4000))) return;
+
+          await Promise.resolve(writer.hideCharacter({ duration: 250 }));
+          if (token !== animationLoopToken || !writer || writerTarget.hidden) return;
+
+          await Promise.resolve(writer.animateCharacter());
+          if (!(await waitForNextAnimationStep(token, 700))) return;
+
+          run();
         };
 
         run();
@@ -459,7 +473,7 @@
           height: size,
           padding: Math.round(size * 0.09),
           showOutline: true,
-          showCharacter: false,
+          showCharacter: true,
           strokeColor: "#2f343b",
           radicalColor: "#2f343b",
           outlineColor: "rgba(47, 52, 59, 0.18)",
