@@ -372,6 +372,26 @@
         return Array.from(text.trim()).find((char) => /\p{Script=Han}/u.test(char)) || "";
       }
 
+      function hanziAtInputSelection() {
+        const text = input.value;
+        const cursor = input.selectionStart || 0;
+        const chars = Array.from(text);
+        let offset = 0;
+        let previousHanzi = "";
+
+        for (const char of chars) {
+          const start = offset;
+          const end = start + char.length;
+          const isHanzi = /\p{Script=Han}/u.test(char);
+
+          if (isHanzi && cursor >= start && cursor < end) return char;
+          if (isHanzi && end <= cursor) previousHanzi = char;
+          offset = end;
+        }
+
+        return previousHanzi || firstHanzi(text);
+      }
+
       function renderRecent() {
         recent.innerHTML = "";
         recentChars.forEach((char) => {
@@ -379,7 +399,7 @@
           button.type = "button";
           button.textContent = char;
           button.title = `显示 ${char}`;
-          button.addEventListener("click", () => showCharacter(char));
+          button.addEventListener("click", () => showCharacter(char, { syncInput: true }));
           recent.append(button);
         });
       }
@@ -580,7 +600,9 @@
         playAnimationLoop();
       }
 
-      function showCharacter(char) {
+      function showCharacter(char, options) {
+        const shouldSyncInput = Boolean(options && options.syncInput);
+
         if (!char) {
           stopAnimationLoop();
           writerTarget.hidden = true;
@@ -595,7 +617,7 @@
         if (char === currentChar) return;
         currentChar = char;
         empty.hidden = true;
-        input.value = char;
+        if (shouldSyncInput) input.value = char;
         if (!createWriter(char)) renderFallbackCharacter(char);
         renderStrokeOrder(char);
 
@@ -606,12 +628,24 @@
 
       form.addEventListener("submit", (event) => {
         event.preventDefault();
-        showCharacter(firstHanzi(input.value));
+        showCharacter(hanziAtInputSelection());
       });
 
       input.addEventListener("input", () => {
         const char = firstHanzi(input.value);
         if (char) showCharacter(char);
+      });
+
+      input.addEventListener("click", () => {
+        showCharacter(hanziAtInputSelection());
+      });
+
+      input.addEventListener("select", () => {
+        showCharacter(hanziAtInputSelection());
+      });
+
+      input.addEventListener("keyup", () => {
+        showCharacter(hanziAtInputSelection());
       });
 
       window.addEventListener("resize", function() {
@@ -627,7 +661,7 @@
       replay.addEventListener("click", replayAnimation);
 
       renderRecent();
-      showCharacter(recentChars[0] || "爱");
+      showCharacter(recentChars[0] || "爱", { syncInput: true });
 
       // Register Service Worker for offline support
       if ('serviceWorker' in navigator) {
