@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>汉字书写和笔顺</title>
     <script src="https://cdn.jsdelivr.net/npm/hanzi-writer@3/dist/hanzi-writer.min.js"></script>
+    <script src="./vendor/cnchar.min.js"></script>
+    <script src="./vendor/cnchar.radical.min.js"></script>
+    <script src="./vendor/cnchar.words.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+SC:wght@400;600&display=swap" rel="stylesheet">
@@ -90,8 +93,10 @@
       .display-panel {
         flex: 1;
         display: flex;
+        flex-direction: column;
         align-items: center;
         justify-content: center;
+        gap: 0.7rem;
         min-height: 0;
       }
 
@@ -143,6 +148,43 @@
         font-size: clamp(1.05rem, 4vw, 1.3rem);
         line-height: 1.6;
         text-align: center;
+      }
+
+      .character-info {
+        width: min(85vw, 22rem);
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 0.45rem;
+      }
+
+      .info-item {
+        min-width: 0;
+        padding: 0.45rem 0.6rem;
+        border: 1px solid rgba(17, 24, 39, 0.08);
+        border-radius: 0.7rem;
+        background: rgba(255, 255, 255, 0.72);
+        font-size: 0.85rem;
+        line-height: 1.35;
+      }
+
+      .info-item--words {
+        grid-column: 1 / -1;
+      }
+
+      .info-label {
+        display: block;
+        margin-bottom: 0.08rem;
+        color: var(--muted);
+        font-size: 0.72rem;
+      }
+
+      .info-value {
+        display: block;
+        overflow: hidden;
+        color: var(--character-ink);
+        font-weight: 700;
+        text-overflow: ellipsis;
+        white-space: nowrap;
       }
 
       .control-panel {
@@ -292,6 +334,10 @@
           width: min(88vw, 24rem);
           border-radius: 0.85rem;
         }
+
+        .character-info {
+          width: min(88vw, 24rem);
+        }
       }
     </style>
   </head>
@@ -309,6 +355,13 @@
           <div id="empty" class="empty">在下面输入汉字<br />这里会显示大字</div>
           <div id="character" class="character" hidden></div>
         </div>
+        <section id="character-info" class="character-info" aria-label="汉字资料" hidden>
+          <div class="info-item"><span class="info-label">拼音</span><span id="info-pinyin" class="info-value">—</span></div>
+          <div class="info-item"><span class="info-label">偏旁</span><span id="info-component" class="info-value">—</span></div>
+          <div class="info-item"><span class="info-label">部首</span><span id="info-radical" class="info-value">—</span></div>
+          <div class="info-item"><span class="info-label">结构</span><span id="info-structure" class="info-value">—</span></div>
+          <div class="info-item info-item--words"><span class="info-label">组词</span><span id="info-words" class="info-value">—</span></div>
+        </section>
       </section>
 
       <section class="control-panel">
@@ -321,17 +374,23 @@
           </div>
           <div id="stroke-order" class="stroke-order"></div>
         </div>
-        <div id="form" class="input-row">
+        <form id="form" class="input-row" autocomplete="off">
           <input
             id="input"
-            type="text"
+            type="search"
+            name="hanzi-search"
             inputmode="text"
-            autocomplete="off"
+            autocomplete="new-password"
             autocapitalize="off"
+            autocorrect="off"
+            spellcheck="false"
+            data-lpignore="true"
+            data-1p-ignore="true"
+            data-form-type="other"
             placeholder="例如：爱"
             aria-label="输入汉字"
           />
-        </div>
+        </form>
         <div id="recent" class="recent" aria-label="最近查看"></div>
       </section>
     </main>
@@ -346,6 +405,12 @@
       const replay = document.querySelector("#replay");
       const strokeOrder = document.querySelector("#stroke-order");
       const strokeSummary = document.querySelector("#stroke-summary");
+      const characterInfo = document.querySelector("#character-info");
+      const infoPinyin = document.querySelector("#info-pinyin");
+      const infoComponent = document.querySelector("#info-component");
+      const infoRadical = document.querySelector("#info-radical");
+      const infoStructure = document.querySelector("#info-structure");
+      const infoWords = document.querySelector("#info-words");
 
       const storageKey = "hanzi-recent";
       let recentChars = loadRecent();
@@ -355,6 +420,45 @@
       let animationLoopToken = 0;
       const measuringCanvas = document.createElement("canvas");
       const measuringContext = measuringCanvas.getContext("2d");
+
+      // 优先展示人工筛选的常用组词；其他字由随应用提供的离线字典查询。
+      const curatedCharacterDetails = {
+        "爱": { pinyin: "ài", component: "爫", radical: "爫", structure: "上下结构", words: ["爱心", "热爱"] },
+        "吧": { words: ["好吧", "酒吧"] },
+        "安": { pinyin: "ān", component: "女", radical: "宀", structure: "上下结构", words: ["安全", "安静"] },
+        "八": { pinyin: "bā", component: "丿", radical: "八", structure: "独体字", words: ["八方", "八成"] },
+        "白": { pinyin: "bái", component: "日", radical: "白", structure: "独体字", words: ["白色", "明白"] },
+        "不": { pinyin: "bù", component: "一", radical: "一", structure: "独体字", words: ["不是", "不但"] },
+        "大": { pinyin: "dà", component: "人", radical: "大", structure: "独体字", words: ["大小", "大家"] },
+        "的": { pinyin: "de", component: "勺", radical: "白", structure: "左右结构", words: ["目的", "好的"] },
+        "地": { pinyin: "dì", component: "也", radical: "土", structure: "左右结构", words: ["地方", "土地"] },
+        "个": { pinyin: "gè", component: "丨", radical: "人", structure: "独体字", words: ["个人", "一个"] },
+        "好": { pinyin: "hǎo", component: "子", radical: "女", structure: "左右结构", words: ["好看", "美好"] },
+        "汉": { pinyin: "hàn", component: "又", radical: "氵", structure: "左右结构", words: ["汉字", "汉语"] },
+        "和": { pinyin: "hé", component: "口", radical: "口", structure: "左右结构", words: ["和平", "和气"] },
+        "家": { pinyin: "jiā", component: "豕", radical: "宀", structure: "上下结构", words: ["家庭", "大家"] },
+        "间": { pinyin: "jiān", component: "日", radical: "门", structure: "半包围结构", words: ["中间", "时间"] },
+        "见": { pinyin: "jiàn", component: "儿", radical: "见", structure: "上下结构", words: ["看见", "见面"] },
+        "今": { pinyin: "jīn", component: "丶", radical: "人", structure: "上下结构", words: ["今天", "今年"] },
+        "里": { pinyin: "lǐ", component: "土", radical: "里", structure: "上下结构", words: ["里面", "这里"] },
+        "妈": { pinyin: "mā", component: "马", radical: "女", structure: "左右结构", words: ["妈妈", "姑妈"] },
+        "你": { pinyin: "nǐ", component: "尔", radical: "亻", structure: "左右结构", words: ["你好", "你们"] },
+        "人": { pinyin: "rén", component: "丿", radical: "人", structure: "独体字", words: ["人民", "别人"] },
+        "日": { pinyin: "rì", component: "一", radical: "日", structure: "独体字", words: ["日子", "生日"] },
+        "山": { pinyin: "shān", component: "丨", radical: "山", structure: "独体字", words: ["高山", "山水"] },
+        "上": { pinyin: "shàng", component: "丨", radical: "一", structure: "独体字", words: ["上面", "上午"] },
+        "是": { pinyin: "shì", component: "人", radical: "日", structure: "上下结构", words: ["可是", "于是"] },
+        "水": { pinyin: "shuǐ", component: "亅", radical: "水", structure: "独体字", words: ["水果", "喝水"] },
+        "天": { pinyin: "tiān", component: "大", radical: "大", structure: "上下结构", words: ["天气", "天空"] },
+        "我": { pinyin: "wǒ", component: "戈", radical: "戈", structure: "左右结构", words: ["我们", "自我"] },
+        "文": { pinyin: "wén", component: "乂", radical: "文", structure: "独体字", words: ["文字", "文化"] },
+        "小": { pinyin: "xiǎo", component: "亅", radical: "小", structure: "独体字", words: ["小心", "大小"] },
+        "学": { pinyin: "xué", component: "子", radical: "子", structure: "上下结构", words: ["学习", "学生"] },
+        "一": { pinyin: "yī", component: "一", radical: "一", structure: "独体字", words: ["一天", "一起"] },
+        "有": { pinyin: "yǒu", component: "月", radical: "月", structure: "上下结构", words: ["没有", "所有"] },
+        "中": { pinyin: "zhōng", component: "丨", radical: "丨", structure: "独体字", words: ["中国", "中间"] },
+        "字": { pinyin: "zì", component: "子", radical: "宀", structure: "上下结构", words: ["汉字", "写字"] }
+      };
 
       function loadRecent() {
         try {
@@ -402,6 +506,50 @@
           button.addEventListener("click", () => showCharacter(char, { syncInput: true }));
           recent.append(button);
         });
+      }
+
+      function renderCharacterInfo(char) {
+        const curatedDetail = curatedCharacterDetails[char] || {};
+        const dictionaryDetail = lookupDictionaryDetail(char);
+        const detail = {
+          pinyin: curatedDetail.pinyin || dictionaryDetail.pinyin,
+          component: curatedDetail.component || dictionaryDetail.component,
+          radical: curatedDetail.radical || dictionaryDetail.radical,
+          structure: curatedDetail.structure || dictionaryDetail.structure,
+          words: curatedDetail.words || dictionaryDetail.words
+        };
+        characterInfo.hidden = false;
+
+        infoPinyin.textContent = detail.pinyin || "—";
+        infoComponent.textContent = detail.component || "—";
+        infoRadical.textContent = detail.radical || "—";
+        infoStructure.textContent = detail.structure || "—";
+        infoWords.textContent = detail.words.length ? detail.words.join("、") : "—";
+      }
+
+      function lookupDictionaryDetail(char) {
+        if (!window.cnchar) return { pinyin: "", component: "", radical: "", structure: "", words: [] };
+
+        try {
+          const pinyin = cnchar.spell(char, "tone").toLowerCase();
+          const radicalInfo = typeof cnchar.radical === "function" ? cnchar.radical(char)[0] : null;
+          const radical = radicalInfo && radicalInfo.radical ? radicalInfo.radical : "";
+          const words = typeof cnchar.words === "function"
+            ? cnchar.words(char).filter((word) => word.length > 1).slice(0, 2)
+            : [];
+
+          return {
+            pinyin: pinyin === char ? "" : pinyin,
+            // 字典的偏旁字段为部首；没有更细粒度拆分时，使用该可靠字段而不猜测组件。
+            component: radical,
+            radical: radical,
+            structure: radicalInfo && radicalInfo.struct ? radicalInfo.struct : "",
+            words: words
+          };
+        } catch (error) {
+          console.warn("汉字资料查询失败:", char, error);
+          return { pinyin: "", component: "", radical: "", structure: "", words: [] };
+        }
       }
 
       function fitCharacter() {
@@ -465,7 +613,8 @@
           if (token !== animationLoopToken || !writer || writerTarget.hidden) return;
 
           await Promise.resolve(writer.showCharacter({ duration: 0 }));
-          if (!(await waitForNextAnimationStep(token, 4000))) return;
+          // 先完整展示字形 10 秒，再开始逐笔动画，便于观察整体结构。
+          if (!(await waitForNextAnimationStep(token, 10000))) return;
 
           await Promise.resolve(writer.hideCharacter({ duration: 250 }));
           if (token !== animationLoopToken || !writer || writerTarget.hidden) return;
@@ -609,6 +758,7 @@
           writerTarget.innerHTML = "";
           character.hidden = true;
           empty.hidden = false;
+          characterInfo.hidden = true;
           strokeOrder.innerHTML = "";
           strokeSummary.textContent = "笔顺会显示在这里";
           return;
@@ -619,6 +769,7 @@
         empty.hidden = true;
         if (shouldSyncInput) input.value = char;
         if (!createWriter(char)) renderFallbackCharacter(char);
+        renderCharacterInfo(char);
         renderStrokeOrder(char);
 
         recentChars = [char, ...recentChars.filter((item) => item !== char)].slice(0, 12);
